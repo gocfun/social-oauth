@@ -1,0 +1,42 @@
+[package]
+name = "social-oauth"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.91"
+description = "Storage-independent Google and Facebook OAuth authorization code flows"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/gocfun/social-oauth"
+homepage = "https://github.com/gocfun/social-oauth"
+documentation = "https://docs.rs/social-oauth"
+keywords = ["oauth", "google", "facebook", "authentication"]
+categories = ["authentication", "web-programming"]
+exclude = [".github/", ".env*", "target/", "config_social.toml", "config_social.local.toml", "**/.DS_Store"]
+
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+default = []
+config-toml = ["dep:toml"]
+
+[dependencies]
+oauth2 = { version = "5", default-features = false, features = ["reqwest", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+futures-util = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+subtle = "2.6"
+thiserror = "2"
+url = "2.5"
+toml = { version = "0.9", optional = true }
+
+[dev-dependencies]
+axum = "0.8"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync"] }
+
+
+[[example]]
+name = "axum"
+path = "examples/axum/main.rs"
+required-features = ["config-toml"]

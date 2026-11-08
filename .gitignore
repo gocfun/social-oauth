@@ -1,0 +1,7 @@
+/target/
+.DS_Store
+.env
+.env.*
+!.env.example
+/config_social.toml
+/config_social.local.toml

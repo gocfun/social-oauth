@@ -1,0 +1,27 @@
+# Copy to config_social.toml and replace credentials, callbacks and Graph version.
+# Enable the config-toml Cargo feature and explicitly call SocialOAuthConfig::from_file.
+# Both sections are optional. A developer may configure only one provider.
+# Demo: cargo run --example axum --features config-toml -- config_social.toml google
+# Use facebook instead of google to select the other section.
+# For HTTP loopback callbacks, the demo uses redirect_url port and callback path.
+
+[google]
+client_id = "<google-client-id>"
+client_secret = "<google-client-secret>"
+redirect_url = "http://localhost:3000/oauth/callback"
+auth_url = "https://accounts.google.com/o/oauth2/v2/auth"
+token_url = "https://oauth2.googleapis.com/token"
+profile_url = "https://openidconnect.googleapis.com/v1/userinfo"
+client_authentication = "request_body"
+
+[facebook]
+client_id = "<facebook-app-id>"
+client_secret = "<facebook-app-secret>"
+redirect_url = "http://localhost:3000/oauth/callback"
+# Choose a Graph API version supported by your own Meta app.
+auth_url = "https://www.facebook.com/v25.0/dialog/oauth"
+token_url = "https://graph.facebook.com/v25.0/oauth/access_token"
+profile_url = "https://graph.facebook.com/v25.0/me"
+client_authentication = "request_body"
+# full: ID, names, email and avatar. id_only: ID only; no email scope requested.
+facebook_profile_mode = "full"
