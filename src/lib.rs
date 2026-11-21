@@ -8,8 +8,7 @@ mod identity;
 mod provider;
 mod state;
 
-/// Explicit TOML configuration loading, available with the `config-toml` feature.
-#[cfg(feature = "config-toml")]
+/// Explicit TOML configuration loading.
 pub mod config;
 
 pub use client::{OAuthClient, ProviderToken};

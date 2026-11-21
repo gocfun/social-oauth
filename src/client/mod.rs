@@ -3,7 +3,10 @@ mod exchange;
 
 pub use exchange::ProviderToken;
 
-use crate::{ClientAuthentication, Endpoints, Error, FacebookProfileMode, Provider};
+use crate::{
+    provider::DISCORD_PROFILE_URL, ClientAuthentication, Endpoints, Error, FacebookProfileMode,
+    Provider,
+};
 use oauth2::{
     basic::BasicClient, AuthType, AuthUrl, ClientId, ClientSecret, EndpointNotSet, EndpointSet,
     RedirectUrl, TokenUrl,
@@ -42,7 +45,7 @@ impl OAuthClient {
     /// Builds a client using endpoints from trusted application configuration.
     /// No config file format, environment variables, Graph version, or storage
     /// implementation is imposed. Redirect URI validation matches the standard
-    /// constructors. Provider profile mapping/scopes remain Google/Facebook-specific.
+    /// constructors. Profile mapping and scopes are specific to the provider.
     pub fn with_endpoints(
         provider: Provider,
         client_id: impl Into<String>,
@@ -71,7 +74,7 @@ impl OAuthClient {
     }
 
     /// Selects Facebook profile data and permissions. Defaults to Full for both
-    /// the standard constructor and custom endpoints. Has no effect on Google.
+    /// the standard constructor and custom endpoints.
     /// Configure before authorization so requested permissions match the lookup.
     pub fn with_facebook_profile_mode(mut self, mode: FacebookProfileMode) -> Self {
         self.facebook_profile_mode = mode;
@@ -129,6 +132,24 @@ impl OAuthClient {
         )
     }
 
+    /// Builds a confidential Discord client using Discord's standard endpoints.
+    /// Requests `identify email` with an S256 PKCE challenge.
+    pub fn discord(
+        client_id: impl Into<String>,
+        client_secret: impl Into<String>,
+        redirect_uri: impl Into<String>,
+    ) -> Result<Self, Error> {
+        Self::new(
+            Provider::Discord,
+            client_id.into(),
+            client_secret.into(),
+            redirect_uri.into(),
+            "https://discord.com/api/oauth2/authorize",
+            "https://discord.com/api/oauth2/token",
+            DISCORD_PROFILE_URL,
+        )
+    }
+
     fn new(
         provider: Provider,
         client_id: String,
@@ -159,12 +180,24 @@ impl OAuthClient {
                 "redirect URI must be HTTPS (HTTP only for loopback), without credentials or fragment",
             ));
         }
+        let mut authorization_url =
+            Url::parse(auth_url).map_err(|_| Error::Configuration("invalid authorization URL"))?;
+        if provider == Provider::Discord && authorization_url.query().is_some() {
+            // Discord's copied authorization URLs may already include response_type.
+            // oauth2 adds it when building an authorization code request.
+            let query: Vec<_> = authorization_url
+                .query_pairs()
+                .into_owned()
+                .filter(|(key, _)| key != "response_type")
+                .collect();
+            authorization_url.set_query(None);
+            if !query.is_empty() {
+                authorization_url.query_pairs_mut().extend_pairs(query);
+            }
+        }
         let oauth = BasicClient::new(ClientId::new(client_id.clone()))
             .set_client_secret(ClientSecret::new(client_secret))
-            .set_auth_uri(
-                AuthUrl::new(auth_url.into())
-                    .map_err(|_| Error::Configuration("invalid authorization URL"))?,
-            )
+            .set_auth_uri(AuthUrl::from_url(authorization_url))
             .set_token_uri(
                 TokenUrl::new(token_url.into())
                     .map_err(|_| Error::Configuration("invalid token URL"))?,
@@ -191,12 +224,12 @@ impl OAuthClient {
         })
     }
 
-    #[cfg(all(test, feature = "config-toml"))]
+    #[cfg(test)]
     pub(crate) fn profile_url(&self) -> &Url {
         &self.profile_url
     }
 
-    #[cfg(all(test, feature = "config-toml"))]
+    #[cfg(test)]
     pub(crate) fn facebook_profile_mode(&self) -> FacebookProfileMode {
         self.facebook_profile_mode
     }

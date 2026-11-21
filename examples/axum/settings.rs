@@ -21,6 +21,7 @@ impl ExampleSettings {
         let section = match provider {
             Provider::Google => config.google.as_ref(),
             Provider::Facebook => config.facebook.as_ref(),
+            Provider::Discord => config.discord.as_ref(),
         }
         .ok_or(ConfigError::ProviderMissing(provider))?;
         let oauth = config.client(provider)?;

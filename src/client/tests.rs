@@ -374,6 +374,63 @@ async fn google_exchange_sends_pkce_and_fetches_identity_with_bearer_token() {
 }
 
 #[tokio::test]
+async fn discord_exchanges_code_with_pkce_and_fetches_identity_with_bearer_token() {
+    let mock = Mock::new(
+        r#"{"id":"80351110224678912","global_name":"Alice","username":"alice",
+            "email":"alice@example.com","verified":true,"avatar":"a_ab12"}"#,
+    );
+    let (client, _server) = mock_client(Provider::Discord, mock.clone()).await;
+    let auth = client.authorize();
+    let state = auth.pending.state().to_owned();
+    let verifier = auth.pending.pkce_verifier().unwrap().to_owned();
+    let identity = client.complete(auth.pending, "code", &state).await.unwrap();
+
+    assert_eq!(identity.provider, Provider::Discord);
+    assert_eq!(identity.subject, "80351110224678912");
+    assert_eq!(identity.name.as_deref(), Some("Alice"));
+    assert_eq!(identity.verified_email(), Some("alice@example.com"));
+    assert_eq!(
+        identity.avatar_url.as_deref(),
+        Some("https://cdn.discordapp.com/avatars/80351110224678912/a_ab12.png")
+    );
+    let forms = mock.forms.lock().unwrap();
+    let fields: std::collections::HashMap<_, _> = url::form_urlencoded::parse(forms[0].as_bytes())
+        .into_owned()
+        .collect();
+    assert_eq!(fields["grant_type"], "authorization_code");
+    assert_eq!(fields["code"], "code");
+    assert_eq!(fields["code_verifier"], verifier);
+    assert_eq!(fields["client_secret"], "client-secret");
+    let profiles = mock.profiles.lock().unwrap();
+    assert_eq!(
+        profiles.as_slice(),
+        &[("Bearer provider-secret-token".into(), String::new())]
+    );
+}
+
+#[test]
+fn discord_profile_falls_back_to_username_and_requires_an_id() {
+    let profile = parse_identity(
+        Provider::Discord,
+        br#"{"id":"80351110224678912","username":"alice","global_name":null,
+             "email":"alice@example.com","verified":false,"avatar":null}"#,
+        FacebookProfileMode::Full,
+    )
+    .unwrap();
+    assert_eq!(profile.name.as_deref(), Some("alice"));
+    assert_eq!(profile.verified_email(), None);
+    assert_eq!(profile.avatar_url, None);
+    assert_eq!(
+        parse_identity(
+            Provider::Discord,
+            br#"{"username":"alice"}"#,
+            FacebookProfileMode::Full
+        ),
+        Err(Error::InvalidProfile)
+    );
+}
+
+#[tokio::test]
 async fn facebook_exchange_fetches_only_id_without_email_or_pkce() {
     let mock = Mock::new(r#"{"id":"facebook-id"}"#);
     let (client, _server) = mock_client(Provider::Facebook, mock.clone()).await;

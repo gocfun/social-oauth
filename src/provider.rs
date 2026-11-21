@@ -8,7 +8,11 @@ pub enum Provider {
     Google,
     /// Facebook: subject is the app-scoped `id` field from Graph API.
     Facebook,
+    /// Discord: subject is the user snowflake from the `id` field.
+    Discord,
 }
+
+pub(crate) const DISCORD_PROFILE_URL: &str = "https://discord.com/api/v10/users/@me";
 
 /// Provider URLs supplied by trusted application configuration, never callback input.
 /// This lets existing applications retain their own endpoint/version configuration.
@@ -18,7 +22,7 @@ pub struct Endpoints {
     pub authorization_url: String,
     /// Server-side authorization code exchange endpoint.
     pub token_url: String,
-    /// Google UserInfo or Facebook Graph `/me` endpoint.
+    /// Provider endpoint for the currently authorized user's profile.
     pub profile_url: String,
 }
 

@@ -110,10 +110,13 @@ async fn expired_pending_state_is_consumed_without_exchange() {
 }
 
 #[test]
-fn distributed_config_runs_either_provider_without_separate_environment_credentials() {
-    let config =
+fn distributed_config_runs_each_provider_without_separate_environment_credentials() {
+    let mut config =
         SocialOAuthConfig::from_toml(include_str!("../../config_social.example.toml")).unwrap();
-    for provider in [Provider::Google, Provider::Facebook] {
+    let discord = config.discord.as_mut().unwrap();
+    discord.client_id = "test-discord-client".into();
+    discord.client_secret = "test-discord-secret".into();
+    for provider in [Provider::Google, Provider::Facebook, Provider::Discord] {
         let settings = ExampleSettings::from_config(&config, provider, None).unwrap();
         assert_eq!(settings.callback_path, "/oauth/callback");
         assert_eq!(

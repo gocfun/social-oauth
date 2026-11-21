@@ -19,12 +19,16 @@ token_url = "https://graph.facebook.com/v25.0/oauth/access_token"
 "#;
 
 #[test]
-fn legacy_sections_are_accepted_without_requiring_discord_or_both_providers() {
+fn google_only_config_is_accepted_and_unrelated_sections_are_ignored() {
     let config = SocialOAuthConfig::from_toml(GOOGLE).unwrap();
     assert!(config.facebook.is_none());
     assert!(matches!(
         config.client(Provider::Facebook),
         Err(ConfigError::ProviderMissing(Provider::Facebook))
+    ));
+    assert!(matches!(
+        config.client(Provider::Discord),
+        Err(ConfigError::ProviderMissing(Provider::Discord))
     ));
     let client = config.client(Provider::Google).unwrap();
     let auth = client
@@ -42,8 +46,43 @@ fn legacy_sections_are_accepted_without_requiring_discord_or_both_providers() {
         client.profile_url().as_str(),
         "https://openidconnect.googleapis.com/v1/userinfo"
     );
-    let with_discord = format!("{GOOGLE}\n[discord]\nclient_secret = 'ignored-legacy-value'\n");
-    assert!(SocialOAuthConfig::from_toml(&with_discord).is_ok());
+    let with_unrelated = format!("{GOOGLE}\n[unrelated]\nenabled = true\n");
+    assert!(SocialOAuthConfig::from_toml(&with_unrelated).is_ok());
+}
+
+#[test]
+fn discord_config_builds_code_authorization_with_one_response_type() {
+    let config = SocialOAuthConfig::from_toml(
+        r#"
+[discord]
+client_id = "discord-client"
+client_secret = "discord-secret"
+redirect_url = "http://localhost:3000/oauth/callback"
+auth_url = "https://discord.com/api/oauth2/authorize?response_type=code&prompt=consent"
+token_url = "https://discord.com/api/oauth2/token"
+"#,
+    )
+    .unwrap();
+    let client = config.client(Provider::Discord).unwrap();
+    let auth = client.authorize();
+    let response_types: Vec<_> = auth
+        .url
+        .query_pairs()
+        .filter_map(|(key, value)| (key == "response_type").then_some(value))
+        .collect();
+    assert_eq!(response_types, ["code"]);
+    let params: std::collections::HashMap<_, _> = auth.url.query_pairs().into_owned().collect();
+    assert_eq!(params["prompt"], "consent");
+    assert_eq!(params["scope"], "identify email");
+    assert_eq!(params["code_challenge_method"], "S256");
+    assert_eq!(
+        params["redirect_uri"],
+        "http://localhost:3000/oauth/callback"
+    );
+    assert_eq!(
+        client.profile_url().as_str(),
+        "https://discord.com/api/v10/users/@me"
+    );
 }
 
 #[test]
@@ -113,10 +152,11 @@ fn reads_only_requested_file_and_returns_redacted_errors() {
 }
 
 #[test]
-fn distributed_template_parses_with_both_providers() {
+fn distributed_template_parses_with_all_providers() {
     let config =
         SocialOAuthConfig::from_toml(include_str!("../../config_social.example.toml")).unwrap();
     assert!(config.google.is_some());
+    assert!(config.discord.is_some());
     assert_eq!(
         config.facebook.unwrap().facebook_profile_mode,
         FacebookProfileMode::Full

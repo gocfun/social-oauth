@@ -9,10 +9,9 @@ impl OAuthClient {
     /// Creates fresh cryptographically random state and a provider authorization URL.
     /// Store `pending` in the browser's server-side session before redirecting.
     pub fn authorize(&self) -> Authorization {
-        let pkce = if self.provider == Provider::Google {
-            PkceMode::S256
-        } else {
-            PkceMode::Disabled
+        let pkce = match self.provider {
+            Provider::Google | Provider::Discord => PkceMode::S256,
+            Provider::Facebook => PkceMode::Disabled,
         };
         self.authorize_with_state(CsrfToken::new_random().secret().clone(), pkce)
             .expect("generated OAuth state is non-empty")
@@ -36,15 +35,16 @@ impl OAuthClient {
         }
         let mut request = self.oauth.authorize_url(|| CsrfToken::new(state));
         let mut pkce_verifier = None;
-        if self.provider == Provider::Google {
-            request = request
-                .add_scope(Scope::new("openid".into()))
-                .add_scope(Scope::new("email".into()))
-                .add_scope(Scope::new("profile".into()));
-        } else if self.facebook_profile_mode == FacebookProfileMode::Full {
-            request = request
-                .add_scope(Scope::new("public_profile".into()))
-                .add_scope(Scope::new("email".into()));
+        let scopes: &[&str] = match self.provider {
+            Provider::Google => &["openid", "email", "profile"],
+            Provider::Facebook if self.facebook_profile_mode == FacebookProfileMode::Full => {
+                &["public_profile", "email"]
+            }
+            Provider::Facebook => &[],
+            Provider::Discord => &["identify", "email"],
+        };
+        for &scope in scopes {
+            request = request.add_scope(Scope::new(scope.into()));
         }
         if pkce == PkceMode::S256 {
             let (challenge, verifier) = PkceCodeChallenge::new_random_sha256();

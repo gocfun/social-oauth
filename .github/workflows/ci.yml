@@ -1,5 +1,7 @@
 name: Rust
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
 
 permissions:
   contents: read
@@ -16,11 +18,32 @@ jobs:
       - run: cargo check --all-targets --locked
       - run: cargo clippy --all-targets --locked -- -D warnings
       - run: cargo test --locked
-      - run: cargo check --all-targets --all-features --locked
-      - run: cargo clippy --all-targets --all-features --locked -- -D warnings
-      - run: cargo test --all-features --locked
-      - run: cargo test --example axum --all-features --locked
-      - run: cargo doc --no-deps --all-features --locked
+      - run: cargo test --example axum --locked
+      - run: cargo doc --no-deps --locked
         env:
           RUSTDOCFLAGS: -D warnings
-      - run: cargo package --all-features --locked
+      - run: cargo package --locked
+
+  publish:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.91.0
+      - name: Match the release tag to the crate version
+        shell: bash
+        run: |
+          version=$(cargo metadata --locked --no-deps --format-version 1 | python3 -c 'import json, sys; print(next(pkg["version"] for pkg in json.load(sys.stdin)["packages"] if pkg["name"] == "social-oauth"))')
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "Expected release tag v$version, got $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+      - uses: rust-lang/crates-io-auth-action@v1
+        id: crates-io-auth
+      - run: cargo publish --locked
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.crates-io-auth.outputs.token }}

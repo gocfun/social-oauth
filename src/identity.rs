@@ -77,6 +77,16 @@ struct FacebookPictureData {
     url: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct DiscordProfile {
+    id: String,
+    username: Option<String>,
+    global_name: Option<String>,
+    email: Option<String>,
+    verified: Option<bool>,
+    avatar: Option<String>,
+}
+
 pub(crate) fn parse_identity(
     provider: Provider,
     body: &[u8],
@@ -126,6 +136,34 @@ pub(crate) fn parse_identity(
                     .picture
                     .and_then(|picture| picture.data)
                     .and_then(|data| data.url),
+            }
+        }
+        Provider::Discord => {
+            let profile: DiscordProfile =
+                serde_json::from_slice(body).map_err(|_| Error::InvalidProfile)?;
+            let avatar_url = profile.avatar.and_then(|hash| {
+                let valid_id = profile.id.bytes().all(|byte| byte.is_ascii_digit());
+                let valid_hash = !hash.is_empty()
+                    && hash
+                        .bytes()
+                        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_');
+                (valid_id && valid_hash).then(|| {
+                    format!(
+                        "https://cdn.discordapp.com/avatars/{}/{hash}.png",
+                        profile.id
+                    )
+                })
+            });
+            Identity {
+                provider,
+                subject: profile.id,
+                email_verified: profile.verified,
+                email: profile.email,
+                name: profile.global_name.or(profile.username),
+                first_name: None,
+                middle_name: None,
+                last_name: None,
+                avatar_url,
             }
         }
     };

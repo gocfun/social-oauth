@@ -1,20 +1,24 @@
-//! Explicit `config_social.toml` loading behind the optional `config-toml` feature.
+//! Explicit `config_social.toml` loading.
 //!
-//! No file or environment variable is read unless your application calls
-//! [`crate::config::SocialOAuthConfig::from_file`]. Use the loader at startup, not per request.
+//! Load the selected file once at startup with
+//! [`crate::config::SocialOAuthConfig::from_file`].
 
-use crate::{ClientAuthentication, Endpoints, FacebookProfileMode, OAuthClient, Provider};
+use crate::{
+    provider::DISCORD_PROFILE_URL, ClientAuthentication, Endpoints, FacebookProfileMode,
+    OAuthClient, Provider,
+};
 use serde::Deserialize;
 use std::{fmt, path::Path};
 
-/// Optional Google/Facebook sections. Unknown sections (e.g. existing `discord`
-/// config) are ignored; only supported providers can be used to build clients.
+/// Optional Google, Facebook and Discord sections. Unknown top-level sections are ignored.
 #[derive(Debug, Clone, Deserialize)]
 pub struct SocialOAuthConfig {
     /// Google client configuration, if configured.
     pub google: Option<OAuthClientConfig>,
     /// Facebook client configuration, if configured.
     pub facebook: Option<OAuthClientConfig>,
+    /// Discord client configuration, if configured.
+    pub discord: Option<OAuthClientConfig>,
 }
 
 /// Configuration for one confidential server-side OAuth client.
@@ -32,13 +36,13 @@ pub struct OAuthClientConfig {
     pub auth_url: String,
     /// Authorization code exchange endpoint.
     pub token_url: String,
-    /// Optional profile endpoint. Defaults to Google's standard UserInfo endpoint
-    /// or Facebook's unversioned `/me`; set explicitly to pin a Graph API version.
+    /// Optional profile endpoint. Defaults to Google's standard UserInfo, Facebook's
+    /// unversioned `/me`, or Discord's v10 `/users/@me`.
     pub profile_url: Option<String>,
     /// Token client authentication (`request_body` by default, or `basic`).
     #[serde(default = "default_client_authentication")]
     pub client_authentication: ClientAuthentication,
-    /// Facebook data/permission mode (`full` by default, or `id_only`). Ignored for Google.
+    /// Facebook data/permission mode (`full` by default, or `id_only`).
     #[serde(default)]
     pub facebook_profile_mode: FacebookProfileMode,
 }
@@ -84,11 +88,12 @@ impl SocialOAuthConfig {
         Self::from_toml(&contents)
     }
 
-    /// Builds one selected provider client. Does not require the other provider.
+    /// Builds one selected provider client.
     pub fn client(&self, provider: Provider) -> Result<OAuthClient, ConfigError> {
         let config = match provider {
             Provider::Google => self.google.as_ref(),
             Provider::Facebook => self.facebook.as_ref(),
+            Provider::Discord => self.discord.as_ref(),
         }
         .ok_or(ConfigError::ProviderMissing(provider))?;
         Ok(config.build(provider)?)
@@ -102,6 +107,7 @@ impl OAuthClientConfig {
         let default_profile = match provider {
             Provider::Google => "https://openidconnect.googleapis.com/v1/userinfo",
             Provider::Facebook => "https://graph.facebook.com/me",
+            Provider::Discord => DISCORD_PROFILE_URL,
         };
         Ok(OAuthClient::with_endpoints(
             provider,

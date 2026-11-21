@@ -13,13 +13,12 @@ rustup show
 
 The repository pins Rust 1.91.0 with rustfmt and Clippy through
 `rust-toolchain.toml`. The library supports Rust 1.91 or newer.
-Default features stay empty; TOML loading is tested separately with `config-toml`.
 No database or production provider credentials are required for automated tests.
 
 ## Run the demo
 
-The Axum example reads the same `config_social.toml` schema as the library's
-optional loader. Run these commands from this repository:
+The Axum example uses the library's TOML loader. Run these commands from this
+repository.
 
 ```sh
 cp -n config_social.example.toml config_social.toml
@@ -31,9 +30,10 @@ a Facebook Graph API version enabled for your Meta app. Register that exact
 `redirect_url` in the provider console, then start one provider:
 
 ```sh
-cargo run --example axum --features config-toml -- config_social.toml google
-# Or stop that process and run Facebook:
-cargo run --example axum --features config-toml -- config_social.toml facebook
+cargo run --example axum -- config_social.toml google
+# Stop the running demo before starting another provider.
+cargo run --example axum -- config_social.toml facebook
+cargo run --example axum -- config_social.toml discord
 ```
 
 With the supplied template, open `http://localhost:3000` and select **Start OAuth**.
@@ -43,7 +43,7 @@ JSON; it does not create an account or issue an application session.
 | Argument | Meaning |
 | --- | --- |
 | `config_social.toml` | Explicit config file path; any filename/path is accepted |
-| `google` / `facebook` | Section to use; the other section is optional |
+| `google` / `facebook` / `discord` | Provider section to use |
 | Optional third argument | Listen address, e.g. `127.0.0.1:9001` |
 
 The callback route comes from the selected section's `redirect_url` path. For an
@@ -57,7 +57,7 @@ For an HTTPS callback behind a tunnel/reverse proxy, choose the internal listen
 address explicitly if needed:
 
 ```sh
-cargo run --example axum --features config-toml -- config_social.toml facebook 127.0.0.1:3000
+cargo run --example axum -- config_social.toml facebook 127.0.0.1:3000
 ```
 
 The demo serves HTTP internally and defaults to loopback port 3000 for HTTPS
@@ -75,7 +75,7 @@ and rate limits. Avoid logging callback query strings or authorization URLs.
 
 ```text
 src/
-  lib.rs                   Public re-exports and optional config module
+  lib.rs                   Public re-exports and config module
   provider.rs              Provider, endpoints and option enums
   state.rs                 Authorization and private pending state
   identity.rs              Normalized identity and profile parsing
@@ -86,7 +86,7 @@ src/
     exchange.rs            Code exchange, opaque token and identity HTTP lookup
     tests.rs               Client/state/profile regressions and HTTP mocks
   config/
-    mod.rs                 Opt-in TOML loader and client factory
+    mod.rs                 TOML loader and client factory
     tests.rs               Config and template regression tests
 examples/axum/
   main.rs                  Explicit CLI/config loading and router setup
@@ -95,21 +95,19 @@ examples/axum/
   tests.rs                 State safety and config/router regression tests
 ```
 
-Public imports stay under `social_oauth::{OAuthClient, Identity, ...}`;
-TOML types stay under `social_oauth::config`. Library defaults remain independent
-of the example's `config-toml` requirement.
+Import client and identity types from `social_oauth` and TOML configuration
+types from `social_oauth::config`.
 
 ## Validation
 
 ```sh
 cargo fmt --all -- --check
-cargo check --all-targets --no-default-features --locked
-cargo test --no-default-features --locked
-cargo clippy --all-targets --all-features --locked -- -D warnings
-cargo test --all-features --locked
-cargo test --example axum --features config-toml --locked
-RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --all-features --locked
-cargo package --all-features --locked
+cargo check --all-targets --locked
+cargo clippy --all-targets --locked -- -D warnings
+cargo test --locked
+cargo test --example axum --locked
+RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --locked
+cargo package --locked
 ```
 
 Tests use local HTTP mocks, not real provider credentials. Live consent/callback
@@ -117,32 +115,24 @@ verification needs your own provider app. Review package metadata before publish
 
 ## Release on crates.io
 
-Maintainers publish from a clean, committed checkout after the validation commands
-above pass. The initial release is `0.1.0`.
+The GitHub Actions workflow publishes the version identified by a matching
+`v<version>` tag once its checks pass.
 
-1. Check crate-name availability and publishing rights on crates.io. A GitHub
-   repository name does not reserve a crate name.
-2. Review version, license and repository/documentation URLs. Keep the README
-   installation snippets aligned with the version being released.
-3. Inspect package contents and verify both optional-feature and default builds:
-
+1. In the crate settings on crates.io, configure a GitHub Trusted Publisher
+   with owner `gocfun`, repository `social-oauth`, and workflow `ci.yml`.
+   [Trusted Publishing setup](https://crates.io/docs/trusted-publishing)
+2. Update `Cargo.toml`, `Cargo.lock`, the README version, and [CHANGELOG.md](CHANGELOG.md).
+   Run the validation commands and inspect the package contents.
    ```sh
    cargo package --list --locked
-   cargo package --all-features --locked
-   cargo publish --dry-run --all-features --locked
    ```
-
-4. Publish using the maintainer's configured registry authentication:
-
+3. Commit the release, then push the commit and the matching tag. For version
+   `0.1.1`, run the following from `main`.
    ```sh
-   cargo publish --locked
+   git tag -a v0.1.1 -m "social-oauth 0.1.1"
+   git push --atomic origin main refs/tags/v0.1.1
    ```
-
-5. Verify the version on crates.io, the docs.rs build (including `config-toml`) and
-   the installation snippets. Tag the matching source revision after publication.
-
-Publishing is a maintainer action. Commands in this document are instructions;
-the documentation update itself does not publish or push anything.
+4. Check the tag's GitHub Actions run, the version on crates.io, and the docs.rs build.
 
 Local `config_social.toml`, `config_social.local.toml`, `.env` files and macOS
 `.DS_Store` metadata are excluded from packages. Inspect the file list before each

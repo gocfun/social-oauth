@@ -1,11 +1,11 @@
 # social-oauth
 
-[![crates.io](https://img.shields.io/crates/v/social-oauth.svg)](https://crates.io/crates/social-oauth)
-[![docs.rs](https://docs.rs/social-oauth/badge.svg)](https://docs.rs/social-oauth)
+[![Version 0.1.1](https://img.shields.io/badge/version-0.1.1-blue.svg)](https://crates.io/crates/social-oauth/0.1.1)
+[![docs.rs for 0.1.1](https://img.shields.io/docsrs/social-oauth/0.1.1)](https://docs.rs/social-oauth/0.1.1/social_oauth/)
 [![CI](https://github.com/gocfun/social-oauth/actions/workflows/ci.yml/badge.svg)](https://github.com/gocfun/social-oauth/actions/workflows/ci.yml)
 [![license](https://img.shields.io/crates/l/social-oauth.svg)](https://github.com/gocfun/social-oauth/blob/main/LICENSE)
 
-Google and Facebook OAuth for Rust backends. Create an authorization URL, exchange
+Google, Facebook and Discord OAuth for Rust backends. Create an authorization URL, exchange
 the callback code and receive a normalized profile. Bring your own account model,
 state store and application sessions.
 
@@ -15,43 +15,36 @@ state store and application sessions.
 
 ```toml
 [dependencies]
-social-oauth = "0.1"
-```
-
-Enable TOML configuration when needed:
-
-```toml
-social-oauth = { version = "0.1", features = ["config-toml"] }
+social-oauth = "0.1.1"
 ```
 
 Alternatively, install from Git:
 
 ```toml
-social-oauth = { git = "https://github.com/gocfun/social-oauth", features = ["config-toml"] }
+social-oauth = { git = "https://github.com/gocfun/social-oauth" }
 ```
 
-Default features are empty. The library has no database or web-framework dependency.
-Call its async methods from a Tokio-based application, such as an Axum server.
+TOML configuration is built in. Call the library's async methods from a
+Tokio-based application, such as an Axum server.
 
 ## Quick start
 
-Create a client once and reuse it in your request handlers:
+Copy `config_social.example.toml` to `config_social.toml` and fill in the
+credentials for the provider you want to use. Register the exact backend
+`redirect_url` in the provider console. Load the file once at startup and reuse
+the client in your request handlers.
 
 ```rust,no_run
-use social_oauth::OAuthClient;
+fn oauth_client() -> Result<social_oauth::OAuthClient, social_oauth::config::ConfigError> {
+    use social_oauth::{config::SocialOAuthConfig, Provider};
 
-fn google_client() -> Result<OAuthClient, Box<dyn std::error::Error>> {
-    Ok(OAuthClient::google(
-        std::env::var("GOOGLE_CLIENT_ID")?,
-        std::env::var("GOOGLE_CLIENT_SECRET")?,
-        "https://example.com/oauth/google/callback",
-    )?)
+    let config = SocialOAuthConfig::from_file("config_social.toml")?;
+    config.client(Provider::Discord)
 }
 ```
 
-For Facebook, use `OAuthClient::facebook(client_id, client_secret, redirect_url,
-graph_version)` with a Graph version enabled for your Meta app. Register the exact
-backend callback URI in the provider console. Keep the client secret server-side.
+Select `Provider::Google` or `Provider::Facebook` to load the corresponding TOML
+section. Keep the configuration file on the server and out of version control.
 
 ### Start authorization
 
@@ -93,14 +86,18 @@ The crate validates state equality, while your application supplies browser bind
 expiry and one-use storage. Rust ownership alone cannot prevent replay of stored
 copies. Avoid logging authorization URLs, callback codes or pending state.
 
+If multiple providers share a callback, use the provider recorded in pending
+state and check that a Discord response contains `iss=https://discord.com` before
+exchanging the code. See [Discord OAuth2](https://docs.discord.com/developers/topics/oauth2#issuer-identification).
+
 ## Provider profiles
 
-| Behavior | Google | Facebook Full (default) | Facebook IdOnly |
-| --- | --- | --- | --- |
-| Identity key | Google `sub` | App-scoped Facebook `id` | App-scoped Facebook `id` |
-| Requested scope | `openid email profile` | `public_profile email` | No explicit extra scope |
-| Profile | Names, email, avatar if available | Names, email, avatar if available | ID only |
-| Default PKCE | S256 | Disabled | Disabled |
+| Behavior | Google | Facebook Full (default) | Facebook IdOnly | Discord |
+| --- | --- | --- | --- | --- |
+| Identity key | Google `sub` | App-scoped Facebook `id` | App-scoped Facebook `id` | Discord user `id` |
+| Requested scope | `openid email profile` | `public_profile email` | No explicit extra scope | `identify email` |
+| Profile | Names, email, avatar if available | Names, email, avatar if available | ID only | Display name or username, email, avatar if available |
+| Default PKCE | S256 | Disabled | Disabled | S256 |
 
 `Identity` contains `provider`, `subject`, `name`, `first_name`, `middle_name`,
 `last_name`, `email`, `email_verified` and `avatar_url`. Optional fields can be absent
@@ -121,25 +118,12 @@ fn id_only(client: OAuthClient) -> OAuthClient {
 IdOnly requests `fields=id` and returns no optional profile data. The setting has
 no effect on Google. Facebook subjects are scoped to the Facebook app.
 
-## Optional TOML configuration
+## TOML configuration
 
-Enable `config-toml` in the dependency, then explicitly load a file. This snippet
-requires that feature:
+`from_file` reads OAuth settings from the exact path you provide. If your
+application already reads the TOML file, pass its contents to `from_toml`.
 
-```rust,ignore
-use social_oauth::{config::SocialOAuthConfig, OAuthClient, Provider};
-
-fn facebook_client() -> Result<OAuthClient, Box<dyn std::error::Error>> {
-    let config = SocialOAuthConfig::from_file("config_social.toml")?;
-    Ok(config.client(Provider::Facebook)?)
-}
-```
-
-Enabling the feature or importing a type reads no file. `from_file` reads only the
-path you provide; `from_toml` accepts text already read by your application. There
-is no automatic file search, environment lookup or environment substitution.
-
-Configure either provider or both. Each section uses the same fields:
+Configure the providers you need. Each section uses the same fields:
 
 ```toml
 [facebook]
@@ -153,17 +137,17 @@ client_authentication = "request_body"
 facebook_profile_mode = "full"
 ```
 
-Choose a Graph version enabled for your app. The first five fields are required;
-the remaining options are:
+Choose a Graph version enabled for your app when configuring Facebook. Each
+provider section requires the first five fields and supports the following options.
 
 | Option | Default | Alternative |
 | --- | --- | --- |
-| `profile_url` | Google UserInfo or Facebook's unversioned `/me` | Your explicit profile endpoint/version |
+| `profile_url` | Google UserInfo, Facebook's unversioned `/me`, or Discord's v10 `/users/@me` | Your explicit profile endpoint/version |
 | `client_authentication` | `request_body` | `basic` |
-| `facebook_profile_mode` | `full` | `id_only`; ignored for Google |
+| `facebook_profile_mode` | `full` | `id_only` for Facebook |
 
 See the [configuration template](https://github.com/gocfun/social-oauth/blob/main/config_social.example.toml)
-for both providers. Unknown provider options are rejected. Unrelated top-level
+for all three providers. Unknown provider options are rejected. Unrelated top-level
 sections are ignored; requesting an unconfigured provider returns
 `ConfigError::ProviderMissing`. Keep credential files out of version control.
 
@@ -180,7 +164,7 @@ After your application validates and consumes its state, use
 S256, save `pending.pkce_verifier()` privately and supply it during exchange.
 See the [API reference](https://docs.rs/social-oauth) for the complete contract.
 
-Identity is fetched directly from provider UserInfo/Graph using a code-exchanged
+Identity is fetched directly from the provider's profile endpoint using a code-exchanged
 token. This is a confidential backend OAuth code client; it does not validate ID
 tokens or accept externally supplied provider access tokens. Provider tokens remain
 opaque and are not persisted. HTTP redirects are disabled, requests time out after
@@ -192,10 +176,18 @@ except HTTP loopback during development.
 The [Axum example](https://github.com/gocfun/social-oauth/tree/main/examples/axum)
 shows TOML loading, a browser-bound one-use state store, authorization and callback
 handlers. It reads the selected provider's callback path and local port from config.
+Run the Discord demo after filling in the `[discord]` section.
+
+```sh
+cargo run --example axum -- config_social.toml discord
+```
+
 Follow the [demo instructions](https://github.com/gocfun/social-oauth/blob/main/DEVELOPMENT.md#run-the-demo)
-to run it from a source checkout.
+to configure the callback and select a provider.
 
 ## Contributing
+
+See the [changelog](https://github.com/gocfun/social-oauth/blob/main/CHANGELOG.md) for release changes.
 
 See [CONTRIBUTING.md](https://github.com/gocfun/social-oauth/blob/main/CONTRIBUTING.md)
 for contribution guidelines and [DEVELOPMENT.md](https://github.com/gocfun/social-oauth/blob/main/DEVELOPMENT.md)

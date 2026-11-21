@@ -1,8 +1,8 @@
 # Copy to config_social.toml and replace credentials, callbacks and Graph version.
-# Enable the config-toml Cargo feature and explicitly call SocialOAuthConfig::from_file.
-# Both sections are optional. A developer may configure only one provider.
-# Demo: cargo run --example axum --features config-toml -- config_social.toml google
-# Use facebook instead of google to select the other section.
+# Load the selected file with SocialOAuthConfig::from_file.
+# Each provider section is optional.
+# Demo: cargo run --example axum -- config_social.toml google
+# Select google, facebook or discord.
 # For HTTP loopback callbacks, the demo uses redirect_url port and callback path.
 
 [google]
@@ -25,3 +25,10 @@ profile_url = "https://graph.facebook.com/v25.0/me"
 client_authentication = "request_body"
 # full: ID, names, email and avatar. id_only: ID only; no email scope requested.
 facebook_profile_mode = "full"
+
+[discord]
+client_id = ""
+client_secret = ""
+redirect_url = "http://localhost:3000/oauth/callback"
+auth_url = "https://discord.com/api/oauth2/authorize?response_type=code"
+token_url = "https://discord.com/api/oauth2/token"

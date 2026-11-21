@@ -34,7 +34,8 @@ impl App {
     }
 }
 
-const USAGE: &str = "cargo run --example axum --features config-toml -- <config-path> <google|facebook> [listen-address]";
+const USAGE: &str =
+    "cargo run --example axum -- <config-path> <google|facebook|discord> [listen-address]";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -49,7 +50,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let provider = match args[1].as_str() {
         "google" => Provider::Google,
         "facebook" => Provider::Facebook,
-        _ => return Err("provider must be google or facebook".into()),
+        "discord" => Provider::Discord,
+        _ => return Err("provider must be google, facebook or discord".into()),
     };
     let listen = args
         .get(2)
