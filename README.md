@@ -192,3 +192,6 @@ See the [changelog](https://github.com/gocfun/social-oauth/blob/main/CHANGELOG.m
 See [CONTRIBUTING.md](https://github.com/gocfun/social-oauth/blob/main/CONTRIBUTING.md)
 for contribution guidelines and [DEVELOPMENT.md](https://github.com/gocfun/social-oauth/blob/main/DEVELOPMENT.md)
 for source layout, tests, local examples and the maintainer release process.
+
+To request support for another social login provider, contact me at
+[windy@gocfun.vn](mailto:windy@gocfun.vn).
