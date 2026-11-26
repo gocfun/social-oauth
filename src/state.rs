@@ -32,6 +32,8 @@ pub struct PendingAuthorization {
     redirect_uri: String,
     state: String,
     pkce_verifier: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    nonce: Option<String>,
 }
 
 impl PendingAuthorization {
@@ -41,6 +43,7 @@ impl PendingAuthorization {
         redirect_uri: String,
         state: String,
         pkce_verifier: Option<String>,
+        nonce: Option<String>,
     ) -> Self {
         Self {
             provider,
@@ -48,6 +51,7 @@ impl PendingAuthorization {
             redirect_uri,
             state,
             pkce_verifier,
+            nonce,
         }
     }
 
@@ -71,6 +75,10 @@ impl PendingAuthorization {
     /// Private PKCE verifier to save in your trusted one-use state store, if enabled.
     pub fn pkce_verifier(&self) -> Option<&str> {
         self.pkce_verifier.as_deref()
+    }
+
+    pub(crate) fn nonce(&self) -> Option<&str> {
+        self.nonce.as_deref()
     }
 }
 

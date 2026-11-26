@@ -8,6 +8,7 @@ use std::time::Duration;
 
 fn app() -> Arc<App> {
     Arc::new(App {
+        apple: false,
         oauth: OAuthClient::google("client", "secret", "http://localhost:3000/oauth/callback")
             .unwrap(),
         secure_cookie: false,
@@ -116,14 +117,20 @@ fn distributed_config_runs_each_provider_without_separate_environment_credential
     let discord = config.discord.as_mut().unwrap();
     discord.client_id = "test-discord-client".into();
     discord.client_secret = "test-discord-secret".into();
-    for provider in [Provider::Google, Provider::Facebook, Provider::Discord] {
+    for provider in [
+        Provider::Google,
+        Provider::Facebook,
+        Provider::Discord,
+        Provider::Apple,
+    ] {
         let settings = ExampleSettings::from_config(&config, provider, None).unwrap();
         assert_eq!(settings.callback_path, "/oauth/callback");
         assert_eq!(
             settings.listen,
             "127.0.0.1:3000".parse::<SocketAddr>().unwrap()
         );
-        assert!(!settings.secure_cookie);
+        assert_eq!(settings.secure_cookie, provider == Provider::Apple);
+        assert_eq!(settings.apple, provider == Provider::Apple);
     }
 }
 

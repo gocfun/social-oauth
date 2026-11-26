@@ -10,6 +10,8 @@ pub enum Provider {
     Facebook,
     /// Discord: subject is the user snowflake from the `id` field.
     Discord,
+    /// Apple: subject is the `sub` claim from a verified identity token.
+    Apple,
 }
 
 pub(crate) const DISCORD_PROFILE_URL: &str = "https://discord.com/api/v10/users/@me";

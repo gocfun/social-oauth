@@ -157,6 +157,7 @@ fn distributed_template_parses_with_all_providers() {
         SocialOAuthConfig::from_toml(include_str!("../../config_social.example.toml")).unwrap();
     assert!(config.google.is_some());
     assert!(config.discord.is_some());
+    assert!(config.client(Provider::Apple).is_ok());
     assert_eq!(
         config.facebook.unwrap().facebook_profile_mode,
         FacebookProfileMode::Full

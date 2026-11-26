@@ -34,6 +34,9 @@ impl OAuthClient {
         code: &str,
         pkce_verifier: Option<&str>,
     ) -> Result<ProviderToken, Error> {
+        if self.provider == Provider::Apple {
+            return Err(Error::ApplePendingRequired);
+        }
         if code.trim().is_empty() {
             return Err(Error::MissingCode);
         }

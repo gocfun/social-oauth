@@ -10,6 +10,7 @@ pub(super) struct ExampleSettings {
     pub callback_path: String,
     pub listen: SocketAddr,
     pub secure_cookie: bool,
+    pub apple: bool,
 }
 
 impl ExampleSettings {
@@ -22,6 +23,7 @@ impl ExampleSettings {
             Provider::Google => config.google.as_ref(),
             Provider::Facebook => config.facebook.as_ref(),
             Provider::Discord => config.discord.as_ref(),
+            Provider::Apple => config.apple.as_ref(),
         }
         .ok_or(ConfigError::ProviderMissing(provider))?;
         let oauth = config.client(provider)?;
@@ -49,6 +51,7 @@ impl ExampleSettings {
             callback_path,
             listen: listen.unwrap_or(default_listen),
             secure_cookie,
+            apple: provider == Provider::Apple,
         })
     }
 }

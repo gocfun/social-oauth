@@ -1,11 +1,11 @@
 # social-oauth
 
-[![Version 0.1.1](https://img.shields.io/badge/version-0.1.1-blue.svg)](https://crates.io/crates/social-oauth/0.1.1)
-[![docs.rs for 0.1.1](https://img.shields.io/docsrs/social-oauth/0.1.1)](https://docs.rs/social-oauth/0.1.1/social_oauth/)
+[![Version 0.1.2](https://img.shields.io/badge/version-0.1.2-blue.svg)](https://crates.io/crates/social-oauth/0.1.2)
+[![docs.rs for 0.1.2](https://img.shields.io/docsrs/social-oauth/0.1.2)](https://docs.rs/social-oauth/0.1.2/social_oauth/)
 [![CI](https://github.com/gocfun/social-oauth/actions/workflows/ci.yml/badge.svg)](https://github.com/gocfun/social-oauth/actions/workflows/ci.yml)
 [![license](https://img.shields.io/crates/l/social-oauth.svg)](https://github.com/gocfun/social-oauth/blob/main/LICENSE)
 
-Google, Facebook and Discord OAuth for Rust backends. Create an authorization URL, exchange
+Google, Facebook, Discord and Apple OAuth for Rust backends. Create an authorization URL, exchange
 the callback code and receive a normalized profile. Bring your own account model,
 state store and application sessions.
 
@@ -15,7 +15,7 @@ state store and application sessions.
 
 ```toml
 [dependencies]
-social-oauth = "0.1.1"
+social-oauth = "0.1.2"
 ```
 
 Alternatively, install from Git:
@@ -43,8 +43,8 @@ fn oauth_client() -> Result<social_oauth::OAuthClient, social_oauth::config::Con
 }
 ```
 
-Select `Provider::Google` or `Provider::Facebook` to load the corresponding TOML
-section. Keep the configuration file on the server and out of version control.
+Select `Provider::Google`, `Provider::Facebook` or `Provider::Apple` to load the
+corresponding TOML section. Keep the file on the server and out of version control.
 
 ### Start authorization
 
@@ -147,9 +147,23 @@ provider section requires the first five fields and supports the following optio
 | `facebook_profile_mode` | `full` | `id_only` for Facebook |
 
 See the [configuration template](https://github.com/gocfun/social-oauth/blob/main/config_social.example.toml)
-for all three providers. Unknown provider options are rejected. Unrelated top-level
+for all four providers. Unknown provider options are rejected. Unrelated top-level
 sections are ignored; requesting an unconfigured provider returns
 `ConfigError::ProviderMissing`. Keep credential files out of version control.
+
+### Sign in with Apple
+
+Use the optional `[apple]` section with the five required fields. Use your
+Services ID as `client_id`, a signed Apple client-secret JWT as `client_secret`,
+and the registered backend HTTPS callback as `redirect_url`. Rotate the JWT before
+expiry. Apple authenticates the client in the token request body.
+
+Mount a POST callback for Apple's `form_post` response. Store the complete
+`PendingAuthorization` so the server retains both state and nonce. If you use a
+browser cookie to identify the pending record, configure it to reach the callback
+on a cross-site form POST. Call `complete` after checking browser ownership and
+atomically consuming the record. The library exchanges the code server-side and
+verifies the ID token against Apple's keys before returning its `sub`.
 
 ## Existing OAuth flows
 
@@ -164,12 +178,12 @@ After your application validates and consumes its state, use
 S256, save `pending.pkce_verifier()` privately and supply it during exchange.
 See the [API reference](https://docs.rs/social-oauth) for the complete contract.
 
-Identity is fetched directly from the provider's profile endpoint using a code-exchanged
-token. This is a confidential backend OAuth code client; it does not validate ID
-tokens or accept externally supplied provider access tokens. Provider tokens remain
-opaque and are not persisted. HTTP redirects are disabled, requests time out after
-15 seconds and profile bodies are limited to 64 KiB. HTTPS callbacks are required,
-except HTTP loopback during development.
+Google, Facebook and Discord fetch identity from their profile endpoints after
+code exchange. Apple verifies a code-exchanged ID token. Provider tokens stay
+opaque and the library does not persist them. HTTP redirects are disabled,
+requests time out after 15 seconds and profile and JWKS bodies are limited to
+64 KiB. The Apple callback requires HTTPS with a domain and callback path. The
+other flows also support HTTP loopback for local development.
 
 ## Example application
 

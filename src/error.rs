@@ -32,4 +32,10 @@ pub enum Error {
     /// UserInfo/Graph returned a malformed, oversized or incomplete identity.
     #[error("invalid provider profile")]
     InvalidProfile,
+    /// Apple identity verification failed, including a missing or mismatched nonce.
+    #[error("invalid Apple identity token")]
+    InvalidAppleIdentity,
+    /// Apple code exchange requires the pending authorization and its nonce.
+    #[error("Apple authorization must use complete with its pending state")]
+    ApplePendingRequired,
 }

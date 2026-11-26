@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 /// Identity fetched directly from the provider after a successful code exchange.
 ///
 /// Use `(provider, subject)` within the configured provider app as the identity key.
-/// This value is not an application session or a validated OpenID Connect ID token.
+/// This value is not an application session. Apple identity fields come from a
+/// verified OpenID Connect ID token.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Identity {
     /// Provider that returned this identity.
@@ -166,6 +167,7 @@ pub(crate) fn parse_identity(
                 avatar_url,
             }
         }
+        Provider::Apple => return Err(Error::InvalidProfile),
     };
     if identity.subject.trim().is_empty() {
         return Err(Error::InvalidProfile);

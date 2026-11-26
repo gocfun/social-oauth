@@ -1,3 +1,4 @@
+mod apple;
 mod authorization;
 mod exchange;
 
@@ -8,14 +9,36 @@ use crate::{
     Provider,
 };
 use oauth2::{
-    basic::BasicClient, AuthType, AuthUrl, ClientId, ClientSecret, EndpointNotSet, EndpointSet,
-    RedirectUrl, TokenUrl,
+    basic::{
+        BasicErrorResponse, BasicRevocationErrorResponse, BasicTokenIntrospectionResponse,
+        BasicTokenType,
+    },
+    AuthType, AuthUrl, Client, ClientId, ClientSecret, EndpointNotSet, EndpointSet,
+    ExtraTokenFields, RedirectUrl, StandardRevocableToken, StandardTokenResponse, TokenUrl,
 };
 use std::{fmt, time::Duration};
 use url::Url;
 
-type ConfiguredClient =
-    BasicClient<EndpointSet, EndpointNotSet, EndpointNotSet, EndpointNotSet, EndpointSet>;
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+struct TokenFields {
+    #[serde(default)]
+    id_token: serde_json::Value,
+}
+
+impl ExtraTokenFields for TokenFields {}
+
+type ConfiguredClient = Client<
+    BasicErrorResponse,
+    StandardTokenResponse<TokenFields, BasicTokenType>,
+    BasicTokenIntrospectionResponse,
+    StandardRevocableToken,
+    BasicRevocationErrorResponse,
+    EndpointSet,
+    EndpointNotSet,
+    EndpointNotSet,
+    EndpointNotSet,
+    EndpointSet,
+>;
 
 /// Confidential server-side OAuth client. Debug output does not expose credentials.
 ///
@@ -53,6 +76,9 @@ impl OAuthClient {
         redirect_uri: impl Into<String>,
         endpoints: Endpoints,
     ) -> Result<Self, Error> {
+        if provider == Provider::Apple {
+            return Err(Error::Configuration("use apple_with_endpoints for Apple"));
+        }
         Self::new(
             provider,
             client_id.into(),
@@ -64,8 +90,11 @@ impl OAuthClient {
         )
     }
 
-    /// Selects token endpoint client authentication without exposing oauth2 types.
+    /// Selects token endpoint client authentication. Apple always uses the request body.
     pub fn with_client_authentication(mut self, authentication: ClientAuthentication) -> Self {
+        if self.provider == Provider::Apple {
+            return self;
+        }
         self.oauth = self.oauth.set_auth_type(match authentication {
             ClientAuthentication::RequestBody => AuthType::RequestBody,
             ClientAuthentication::Basic => AuthType::BasicAuth,
@@ -180,6 +209,15 @@ impl OAuthClient {
                 "redirect URI must be HTTPS (HTTP only for loopback), without credentials or fragment",
             ));
         }
+        if provider == Provider::Apple
+            && (redirect.scheme() != "https"
+                || !matches!(redirect.host(), Some(url::Host::Domain(host)) if !host.eq_ignore_ascii_case("localhost"))
+                || redirect.path() == "/")
+        {
+            return Err(Error::Configuration(
+                "Apple redirect URI requires HTTPS, a domain and a callback path",
+            ));
+        }
         let mut authorization_url =
             Url::parse(auth_url).map_err(|_| Error::Configuration("invalid authorization URL"))?;
         if provider == Provider::Discord && authorization_url.query().is_some() {
@@ -195,7 +233,7 @@ impl OAuthClient {
                 authorization_url.query_pairs_mut().extend_pairs(query);
             }
         }
-        let oauth = BasicClient::new(ClientId::new(client_id.clone()))
+        let oauth = Client::new(ClientId::new(client_id.clone()))
             .set_client_secret(ClientSecret::new(client_secret))
             .set_auth_uri(AuthUrl::from_url(authorization_url))
             .set_token_uri(

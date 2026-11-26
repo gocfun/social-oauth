@@ -3,7 +3,7 @@ use axum::{
     extract::{Query, State},
     http::{header, HeaderMap, HeaderValue, StatusCode},
     response::{IntoResponse, Redirect, Response},
-    Json,
+    Form, Json,
 };
 use std::{
     sync::Arc,
@@ -54,9 +54,34 @@ pub(super) async fn callback(
     headers: HeaderMap,
     Query(query): Query<Callback>,
 ) -> Response {
-    // Atomically consume before any await; no lock is held during provider requests.
-    let pending =
-        browser_cookie(&headers).and_then(|browser| app.pending.lock().unwrap().remove(browser));
+    finish_callback(app, headers, query).await
+}
+
+pub(super) async fn apple_callback(
+    State(app): State<Arc<App>>,
+    headers: HeaderMap,
+    Form(form): Form<Callback>,
+) -> Response {
+    finish_callback(app, headers, form).await
+}
+
+async fn finish_callback(app: Arc<App>, headers: HeaderMap, query: Callback) -> Response {
+    // Check Apple state and consume under one lock. A cross-site POST with the
+    // browser cookie alone must neither consume pending state nor clear the cookie.
+    let pending = {
+        let mut store = app.pending.lock().unwrap();
+        let browser = browser_cookie(&headers);
+        if app.apple
+            && !browser
+                .and_then(|browser| store.get(browser))
+                .is_some_and(|pending| {
+                    query.state.as_deref() == Some(pending.authorization.state())
+                })
+        {
+            return (StatusCode::BAD_REQUEST, "Invalid Apple OAuth state").into_response();
+        }
+        browser.and_then(|browser| store.remove(browser))
+    };
     let mut response = match pending {
         Some(pending) if pending.created.elapsed() < Duration::from_secs(300) => {
             if query.error.is_some() {
@@ -105,8 +130,9 @@ fn browser_cookie(headers: &HeaderMap) -> Option<&str> {
 
 fn cookie_header(app: &App, browser: &str, max_age: u64) -> HeaderValue {
     let secure = if app.secure_cookie { "; Secure" } else { "" };
+    let same_site = if app.apple { "None" } else { "Lax" };
     HeaderValue::from_str(&format!(
-        "oauth_demo={browser}; HttpOnly; SameSite=Lax; Path=/; Max-Age={max_age}{secure}"
+        "oauth_demo={browser}; HttpOnly; SameSite={same_site}; Path=/; Max-Age={max_age}{secure}"
     ))
     .unwrap()
 }

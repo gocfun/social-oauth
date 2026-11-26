@@ -2,7 +2,7 @@
 # Load the selected file with SocialOAuthConfig::from_file.
 # Each provider section is optional.
 # Demo: cargo run --example axum -- config_social.toml google
-# Select google, facebook or discord.
+# Select google, facebook, discord or apple.
 # For HTTP loopback callbacks, the demo uses redirect_url port and callback path.
 
 [google]
@@ -32,3 +32,10 @@ client_secret = ""
 redirect_url = "http://localhost:3000/oauth/callback"
 auth_url = "https://discord.com/api/oauth2/authorize?response_type=code"
 token_url = "https://discord.com/api/oauth2/token"
+
+[apple]
+client_id = "<apple-services-id>"
+client_secret = "<signed-apple-client-secret-jwt>"
+redirect_url = "https://auth.example.com/oauth/callback"
+auth_url = "https://appleid.apple.com/auth/authorize"
+token_url = "https://appleid.apple.com/auth/token"

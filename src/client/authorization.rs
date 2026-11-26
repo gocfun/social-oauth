@@ -11,7 +11,7 @@ impl OAuthClient {
     pub fn authorize(&self) -> Authorization {
         let pkce = match self.provider {
             Provider::Google | Provider::Discord => PkceMode::S256,
-            Provider::Facebook => PkceMode::Disabled,
+            Provider::Facebook | Provider::Apple => PkceMode::Disabled,
         };
         self.authorize_with_state(CsrfToken::new_random().secret().clone(), pkce)
             .expect("generated OAuth state is non-empty")
@@ -34,6 +34,20 @@ impl OAuthClient {
             return Err(Error::InvalidState);
         }
         let mut request = self.oauth.authorize_url(|| CsrfToken::new(state));
+        let nonce = if self.provider == Provider::Apple {
+            if pkce == PkceMode::S256 {
+                return Err(Error::Configuration(
+                    "Apple browser flow requires PKCE disabled",
+                ));
+            }
+            let nonce = CsrfToken::new_random().secret().clone();
+            request = request
+                .add_extra_param("response_mode", "form_post")
+                .add_extra_param("nonce", nonce.clone());
+            Some(nonce)
+        } else {
+            None
+        };
         let mut pkce_verifier = None;
         let scopes: &[&str] = match self.provider {
             Provider::Google => &["openid", "email", "profile"],
@@ -42,6 +56,7 @@ impl OAuthClient {
             }
             Provider::Facebook => &[],
             Provider::Discord => &["identify", "email"],
+            Provider::Apple => &["openid"],
         };
         for &scope in scopes {
             request = request.add_scope(Scope::new(scope.into()));
@@ -60,6 +75,7 @@ impl OAuthClient {
                 self.redirect_uri.clone(),
                 state.secret().clone(),
                 pkce_verifier,
+                nonce,
             ),
         })
     }
@@ -81,6 +97,10 @@ impl OAuthClient {
         }
         if !bool::from(pending.state().as_bytes().ct_eq(returned_state.as_bytes())) {
             return Err(Error::StateMismatch);
+        }
+        if self.provider == Provider::Apple {
+            let nonce = pending.nonce().ok_or(Error::InvalidAppleIdentity)?;
+            return self.apple_identity_from_code(code, nonce).await;
         }
         self.identity_from_code(code, pending.pkce_verifier()).await
     }

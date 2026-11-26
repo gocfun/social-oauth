@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.2]
+
+### Added
+
+- Added the Apple browser authorization flow, an optional `[apple]`
+  configuration section, and POST callback support in the Axum example.
+- Apple validates a signed ID token and nonce before returning an identity.
+
+### Compatibility
+
+- Downstream exhaustive matches on `Provider` must account for `Provider::Apple`.
+- Downstream `SocialOAuthConfig` struct literals must include the optional `apple` field.
+
 ## [0.1.1]
 
 ### Added
@@ -24,5 +37,6 @@
 - Initial release with Google and Facebook OAuth, optional TOML configuration,
   and an Axum example.
 
+[0.1.2]: https://github.com/gocfun/social-oauth/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/gocfun/social-oauth/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/gocfun/social-oauth/tree/v0.1.0

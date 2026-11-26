@@ -43,7 +43,7 @@ JSON; it does not create an account or issue an application session.
 | Argument | Meaning |
 | --- | --- |
 | `config_social.toml` | Explicit config file path; any filename/path is accepted |
-| `google` / `facebook` / `discord` | Provider section to use |
+| `google` / `facebook` / `discord` / `apple` | Provider section to use |
 | Optional third argument | Listen address, e.g. `127.0.0.1:9001` |
 
 The callback route comes from the selected section's `redirect_url` path. For an
@@ -65,8 +65,13 @@ callbacks. Start the flow through the configured public HTTPS origin; the exampl
 adds `Secure` to its cookie when the callback scheme is HTTPS. Your proxy/tunnel
 must forward the callback path to this listener.
 
-The example is a single-process demo. It uses a separate HttpOnly, SameSite=Lax
-browser cookie and a bounded in-memory state map with a five-minute TTL. Pending
+For Apple, run the demo with `apple` behind the registered public HTTPS origin.
+The demo receives Apple's form POST and sets its HttpOnly cookie with
+`Secure; SameSite=None` so it reaches the callback. Other providers use
+`SameSite=Lax`.
+
+The example is a single-process demo. It uses a browser cookie and a bounded
+in-memory state map with a five-minute TTL. Pending
 state is consumed before provider requests. Starting again in the same browser
 replaces its previous attempt. Deployment needs a suitable shared one-use store
 and rate limits. Avoid logging callback query strings or authorization URLs.
@@ -127,10 +132,10 @@ The GitHub Actions workflow publishes the version identified by a matching
    cargo package --list --locked
    ```
 3. Commit the release, then push the commit and the matching tag. For version
-   `0.1.1`, run the following from `main`.
+   `0.1.2`, run the following from `main`.
    ```sh
-   git tag -a v0.1.1 -m "social-oauth 0.1.1"
-   git push --atomic origin main refs/tags/v0.1.1
+   git tag -a v0.1.2 -m "social-oauth 0.1.2"
+   git push --atomic origin main refs/tags/v0.1.2
    ```
 4. Check the tag's GitHub Actions run, the version on crates.io, and the docs.rs build.
 

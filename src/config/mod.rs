@@ -10,7 +10,7 @@ use crate::{
 use serde::Deserialize;
 use std::{fmt, path::Path};
 
-/// Optional Google, Facebook and Discord sections. Unknown top-level sections are ignored.
+/// Optional Google, Facebook, Discord and Apple sections. Unknown sections are ignored.
 #[derive(Debug, Clone, Deserialize)]
 pub struct SocialOAuthConfig {
     /// Google client configuration, if configured.
@@ -19,6 +19,8 @@ pub struct SocialOAuthConfig {
     pub facebook: Option<OAuthClientConfig>,
     /// Discord client configuration, if configured.
     pub discord: Option<OAuthClientConfig>,
+    /// Apple browser client configuration, if configured.
+    pub apple: Option<OAuthClientConfig>,
 }
 
 /// Configuration for one confidential server-side OAuth client.
@@ -94,6 +96,7 @@ impl SocialOAuthConfig {
             Provider::Google => self.google.as_ref(),
             Provider::Facebook => self.facebook.as_ref(),
             Provider::Discord => self.discord.as_ref(),
+            Provider::Apple => self.apple.as_ref(),
         }
         .ok_or(ConfigError::ProviderMissing(provider))?;
         Ok(config.build(provider)?)
@@ -108,6 +111,22 @@ impl OAuthClientConfig {
             Provider::Google => "https://openidconnect.googleapis.com/v1/userinfo",
             Provider::Facebook => "https://graph.facebook.com/me",
             Provider::Discord => DISCORD_PROFILE_URL,
+            Provider::Apple => {
+                if self.profile_url.is_some()
+                    || self.client_authentication != ClientAuthentication::RequestBody
+                {
+                    return Err(crate::Error::Configuration(
+                        "Apple uses signed identity tokens and request body authentication",
+                    ));
+                }
+                return OAuthClient::apple_with_endpoints(
+                    self.client_id.clone(),
+                    self.client_secret.clone(),
+                    self.redirect_url.clone(),
+                    &self.auth_url,
+                    &self.token_url,
+                );
+            }
         };
         Ok(OAuthClient::with_endpoints(
             provider,

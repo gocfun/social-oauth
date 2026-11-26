@@ -2,8 +2,12 @@
 mod handlers;
 mod settings;
 
-use axum::{response::Html, routing::get, Router};
-use handlers::{callback, login};
+use axum::{
+    response::Html,
+    routing::{get, post},
+    Router,
+};
+use handlers::{apple_callback, callback, login};
 use settings::ExampleSettings;
 use social_oauth::{config::SocialOAuthConfig, OAuthClient, PendingAuthorization, Provider};
 use std::{
@@ -21,6 +25,7 @@ struct Pending {
 struct App {
     oauth: OAuthClient,
     secure_cookie: bool,
+    apple: bool,
     pending: Mutex<HashMap<String, Pending>>,
 }
 
@@ -29,13 +34,14 @@ impl App {
         Self {
             oauth: settings.oauth,
             secure_cookie: settings.secure_cookie,
+            apple: settings.apple,
             pending: Mutex::new(HashMap::new()),
         }
     }
 }
 
 const USAGE: &str =
-    "cargo run --example axum -- <config-path> <google|facebook|discord> [listen-address]";
+    "cargo run --example axum -- <config-path> <google|facebook|discord|apple> [listen-address]";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -51,7 +57,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "google" => Provider::Google,
         "facebook" => Provider::Facebook,
         "discord" => Provider::Discord,
-        _ => return Err("provider must be google, facebook or discord".into()),
+        "apple" => Provider::Apple,
+        _ => return Err("provider must be google, facebook, discord or apple".into()),
     };
     let listen = args
         .get(2)
@@ -79,13 +86,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn router(app: Arc<App>, callback_path: &str) -> Router {
+    let callback_route = if app.apple {
+        post(apple_callback)
+    } else {
+        get(callback)
+    };
     Router::new()
         .route(
             "/",
             get(|| async { Html("<a href='/login'>Start OAuth</a>") }),
         )
         .route("/login", get(login))
-        .route(callback_path, get(callback))
+        .route(callback_path, callback_route)
         .with_state(app)
 }
 
