@@ -4,9 +4,10 @@
 
 ### Added
 
-- Added the Apple browser authorization flow, an optional `[apple]`
-  configuration section, and POST callback support in the Axum example.
-- Apple validates a signed ID token and nonce before returning an identity.
+- Added Sign in with Apple for browser-based OAuth via `Provider::Apple`,
+  the optional `[apple]` configuration section, and a POST callback in the Axum example.
+- The Apple provider verifies the ID token signature and nonce before returning
+  the user's Apple subject.
 
 ### Compatibility
 

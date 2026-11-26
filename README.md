@@ -5,9 +5,13 @@
 [![CI](https://github.com/gocfun/social-oauth/actions/workflows/ci.yml/badge.svg)](https://github.com/gocfun/social-oauth/actions/workflows/ci.yml)
 [![license](https://img.shields.io/crates/l/social-oauth.svg)](https://github.com/gocfun/social-oauth/blob/main/LICENSE)
 
-Google, Facebook, Discord and Apple OAuth for Rust backends. Create an authorization URL, exchange
-the callback code and receive a normalized profile. Bring your own account model,
-state store and application sessions.
+OAuth for Rust backends with **Google, Facebook, Discord, and Sign in with Apple**.
+Create an authorization URL, exchange the callback code on the server, and receive
+a normalized identity. Bring your own account model, state store, and application sessions.
+
+**Sign in with Apple is available in 0.1.2.** Use `Provider::Apple` with a
+Services ID and an HTTPS POST callback. The library verifies Apple's ID token
+before returning the user's identity. See [Sign in with Apple setup](#sign-in-with-apple).
 
 [Repository](https://github.com/gocfun/social-oauth) · Rust 1.91+
 
@@ -39,12 +43,13 @@ fn oauth_client() -> Result<social_oauth::OAuthClient, social_oauth::config::Con
     use social_oauth::{config::SocialOAuthConfig, Provider};
 
     let config = SocialOAuthConfig::from_file("config_social.toml")?;
-    config.client(Provider::Discord)
+    config.client(Provider::Apple)
 }
 ```
 
-Select `Provider::Google`, `Provider::Facebook` or `Provider::Apple` to load the
-corresponding TOML section. Keep the file on the server and out of version control.
+Select `Provider::Google`, `Provider::Facebook`, `Provider::Discord`, or
+`Provider::Apple` to load the corresponding TOML section. Keep the file on the
+server and out of version control.
 
 ### Start authorization
 
@@ -92,12 +97,12 @@ exchanging the code. See [Discord OAuth2](https://docs.discord.com/developers/to
 
 ## Provider profiles
 
-| Behavior | Google | Facebook Full (default) | Facebook IdOnly | Discord |
-| --- | --- | --- | --- | --- |
-| Identity key | Google `sub` | App-scoped Facebook `id` | App-scoped Facebook `id` | Discord user `id` |
-| Requested scope | `openid email profile` | `public_profile email` | No explicit extra scope | `identify email` |
-| Profile | Names, email, avatar if available | Names, email, avatar if available | ID only | Display name or username, email, avatar if available |
-| Default PKCE | S256 | Disabled | Disabled | S256 |
+| Behavior | Google | Facebook Full (default) | Facebook IdOnly | Discord | Apple |
+| --- | --- | --- | --- | --- | --- |
+| Identity key | Google `sub` | App-scoped Facebook `id` | App-scoped Facebook `id` | Discord user `id` | Apple `sub` from the verified ID token |
+| Requested scope | `openid email profile` | `public_profile email` | No explicit extra scope | `identify email` | `openid` |
+| Profile | Names, email, avatar if available | Names, email, avatar if available | ID only | Display name or username, email, avatar if available | Subject and optional email claims from the ID token |
+| Default PKCE | S256 | Disabled | Disabled | S256 | Disabled |
 
 `Identity` contains `provider`, `subject`, `name`, `first_name`, `middle_name`,
 `last_name`, `email`, `email_verified` and `avatar_url`. Optional fields can be absent
@@ -167,12 +172,13 @@ verifies the ID token against Apple's keys before returning its `sub`.
 
 ## Existing OAuth flows
 
-Use `with_endpoints` for custom/versioned provider URLs and
+Use `with_endpoints` for custom/versioned Google, Facebook, or Discord URLs and
 `with_client_authentication` to select token endpoint authentication.
+Use `apple_with_endpoints` for explicit Apple authorization and token URLs.
 `authorize_with_state(state, pkce)` preserves application-generated state, including
 prefixes, and lets you choose `PkceMode::S256` or `Disabled`.
 
-After your application validates and consumes its state, use
+For Google, Facebook, and Discord, after your application validates and consumes its state, use
 `identity_from_code(code, verifier)` or the separate `exchange_code` and
 `fetch_identity` methods. These lower-level methods do not validate state. With
 S256, save `pending.pkce_verifier()` privately and supply it during exchange.
@@ -190,10 +196,10 @@ other flows also support HTTP loopback for local development.
 The [Axum example](https://github.com/gocfun/social-oauth/tree/main/examples/axum)
 shows TOML loading, a browser-bound one-use state store, authorization and callback
 handlers. It reads the selected provider's callback path and local port from config.
-Run the Discord demo after filling in the `[discord]` section.
+Run the Apple demo behind the HTTPS origin registered for the `[apple]` callback.
 
 ```sh
-cargo run --example axum -- config_social.toml discord
+cargo run --example axum -- config_social.toml apple
 ```
 
 Follow the [demo instructions](https://github.com/gocfun/social-oauth/blob/main/DEVELOPMENT.md#run-the-demo)
